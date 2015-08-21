@@ -1,0 +1,5 @@
+{"inputServiceContract": "courseSelection", 
+  "params": [
+  {"paramID":1, "type": "string", "constraints":[{"key": "len", "val": "1" }
+  												 {"key": "NN", "val" : "1"} ]}
+  ]}
