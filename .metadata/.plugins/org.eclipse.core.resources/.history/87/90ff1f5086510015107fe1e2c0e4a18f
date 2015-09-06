@@ -1,0 +1,62 @@
+package serviceConsumer
+
+
+import org.apache.http.impl.client.DefaultHttpClient
+import org.apache.http.client.methods.HttpGet
+import serviceConsumer.serviceInventory.InventoryManager
+import workflowOrchestration.exceptions.ServiceContractValidationFailedException
+import scala.collection.immutable.HashMap
+import org.apache.http.HttpResponse
+import sun.net.www.http.HttpClient
+import org.apache.http.client.entity.UrlEncodedFormEntity
+import org.apache.http.NameValuePair
+import org.apache.http.message.BasicNameValuePair
+import org.apache.http.client.methods.HttpPost
+import java.util.ArrayList
+import java.io.File
+import java.nio.file.Files
+import scala.collection.mutable.Buffer
+import java.io.BufferedReader
+
+
+/**
+ * @author fra
+ */
+class ServiceProvider{
+
+  def execute(servFeatures : Map[String, String] , servParams : Map[String, String]){
+      
+     val host=servFeatures("host")
+     val port = "8080"
+     val basicUri = servFeatures("silosUri")
+     val servUri = servFeatures("uri")
+     
+     def readRes(httpRes : HttpResponse) : String= {
+       var res = ""
+        Stream.continually(new InputStreamReader(httpRes.getEntity.getContent)).takeWhile (-1 !=).foreach { x => res =res.+(x) }
+        res
+      }
+     
+     servFeatures("httpMethod").toUpperCase() match {
+       case "GET" => {readRes(get(host, port, basicUri, servUri, servFeatures("dataType"), servParams))}
+       case "POST" =>{readRes(post(host, port, basicUri, servUri, servParams))}
+     }
+  }
+  
+  def get(host:String, port:String, basicUri:String, servUri:String, dataType:String, params : Map[String, String]): HttpResponse = {
+    
+    val getReq = new HttpGet("http://"+host+":"+port+"/"+basicUri+servUri+params.values.mkString("", "/", ""))
+    getReq.addHeader("accept", dataType)
+    new DefaultHttpClient().execute(getReq)
+  }
+  
+  def post(host:String, port:String, basicUri:String, servUri:String , params : Map[String, String]): HttpResponse = {
+    
+      var entityParams = new ArrayList[BasicNameValuePair]
+      params.keySet.foreach { x => entityParams.add(new BasicNameValuePair(x, params(x))) }
+      
+      val httpPost = new HttpPost("http://"+host+":"+port+basicUri+servUri)
+      httpPost.setEntity(new UrlEncodedFormEntity(entityParams))
+      new DefaultHttpClient().execute(httpPost)
+  }
+}

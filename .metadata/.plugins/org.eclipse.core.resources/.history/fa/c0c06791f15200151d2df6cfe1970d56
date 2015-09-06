@@ -1,0 +1,128 @@
+package serviceConsumer.serviceInventory
+
+
+import workflowOrchestration.exceptions.InvalidServiceException
+import java.util.Currency
+import java.sql.ResultSet
+import java.sql.CallableStatement
+import processOrchestration.Constraint
+import processOrchestration.Param
+import scala.collection.mutable.ListBuffer
+import processOrchestration.Silos
+import processOrchestration.Silos
+import scala.collection.immutable.Map
+import scala.collection.immutable.HashMap
+
+/**
+ * @author fra
+ */
+object InventoryManager {
+  
+
+
+  //TODO : handle exceptions !!!
+  def getSilos : List[Silos] = {
+   
+     val stm = DBAccessor.conn.prepareCall("call getSilos()")
+     val rs = stm.executeQuery
+     val p : ListBuffer[Silos] = ListBuffer()
+     while(rs.next)
+       p.+=(new Silos(rs.getString(2), rs.getString(3), rs.getInt(1).toString))
+      p.to[List]
+  }
+  
+    //TODO : handle exceptions !!!
+  def getDiscoveryProps(silosName : String): Map[String, String] ={
+      
+    if(DBAccessor.conn.isClosed)
+      DBAccessor.loadConn
+      
+      val stm = DBAccessor.conn.prepareCall("call getDiscoveryProps(?)")
+      stm.setString(1, silosName)
+      val rs = stm.executeQuery
+      
+      var res : Map[String, String] = Map()
+      if(rs.next){ res =res.+(rs.getMetaData.getColumnName(1) -> rs.getString(1))
+                   res= res.+(rs.getMetaData.getColumnName(2) -> rs.getString(2))
+                   res =res.+(rs.getMetaData.getColumnName(3) -> rs.getString(3))}
+      else throw new InvalidServiceException("le service ne semble pas exister dans l'inventaire de service")
+    
+    res
+  }
+  
+  
+  def getCapability(name: String): Map [String, String] = {
+    
+    //TODO : handle error
+    def exec(params : Seq[String]): ResultSet = {
+      
+        var r = "call getCapability"
+        params.length match { case 1 => r=r.+("(?)") case 2 => r=r.+("WithService(?,?)") case 3 => r=r.+("WithServiceAndSilos(?,?,?)") case _ => }
+        val callStm = DBAccessor.conn.prepareCall(r) 
+        
+        for((j,i)<-params.view.zipWithIndex)  callStm.setString(i+1, j.asInstanceOf[String])
+         callStm.executeQuery
+    }
+    
+    if(DBAccessor.conn.isClosed()) 
+      DBAccessor.loadConn()
+      
+    var p : HashMap[String, String] = HashMap()
+    val rs= exec(split('/', name))
+    
+    rs.next() match {
+      case true => { List("serviceName","host","uri", "httpMethod", "dataType", "silosUri").foreach {k=> p+= k -> rs.getString(k)}}
+      case false => { throw new InvalidServiceException("le service "+name+" ne semble pas exister dans l'inventaire de service")}
+    }
+    p
+  }
+  
+  
+  
+  def getService(name : String = "" ): List[Map[String, String]] = {
+   
+    val res = if(name.isEmpty())
+                DBAccessor.execQuery("getServices", Seq())
+              else DBAccessor.execQuery("getService", Seq(name))
+    
+    res.foreach(f->{})
+    
+    
+      
+    null
+  }
+  
+  
+  
+ def getParamConstraints(capName: String) : Seq[Param] = {
+      
+    val callStm = DBAccessor.conn.prepareCall("call getConstraints(?)")
+    callStm.setString(1, capName)
+    val rs = callStm.executeQuery
+    val p : ListBuffer[Param] = ListBuffer()
+    
+    
+      while(rs.next){
+         val filtered =p.filter { x => x.name == rs.getString("name")}
+          if(filtered.length>0)  filtered.head.constraint.+:(new Constraint(rs.getString("field"),
+                                                                             rs.getString("func"),
+                                                                             rs.getString("value")))
+          else p.+=(new Param(rs.getString("name"), rs.getString("type"), "", rs.getInt("seq"), Seq(new Constraint(rs.getString("field"),
+                                                                                                                     rs.getString("func"),
+                                                                                                                     rs.getString("value")))))
+      }
+   
+    p.toSeq
+ }
+ 
+ 
+ 
+  
+   private def split(sep:Char, source :String):Array[String] = {
+     if(source.contains(sep)) 
+       return source.split(sep.toString)
+     else 
+       return Array(source)
+  }
+  
+}

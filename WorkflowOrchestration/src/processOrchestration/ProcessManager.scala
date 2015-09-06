@@ -41,7 +41,7 @@ class ProcessManager(m: Message) {
                 if(c.args(k).startsWith("ws:")) { val subServ = seq.filter{ s => s.id==getId("", c args(k))}.head
                                                   (k, getMsgContent( split('.', cleanArgs(c.args(k)) ) , new JsonParser().parse(subServ.output)))}
                 
-                else (k, getMsgContent(c.args(k).split(".").toList, new JsonParser().parse( new FileReader(new File("processes/"+m.routingKey)))))
+                else (k, c.args(k))
              }}         
              c.run(params.toList)
              execProcess(executed.+=(c), toExec.dropWhile { x => x.id.equals(c.id)})

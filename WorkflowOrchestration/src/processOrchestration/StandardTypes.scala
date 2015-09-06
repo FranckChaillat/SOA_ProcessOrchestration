@@ -1,0 +1,29 @@
+package processOrchestration
+
+import java.util.Date
+
+
+import java.util.Date
+
+/**
+ * @author fra
+ */
+object StandardTypes extends Enumeration {
+  
+  sealed case class Types(name: String, c : Class[_]) extends Val(name)
+  
+  val Integer = Types("int", classOf[Int])
+  val Date = Types("date", classOf[Date])
+  val String = Types("string", classOf[String])
+  
+  def getType(t: String): Class[_] = {
+    
+    t.toLowerCase match{
+      case "int" => Integer.c
+      case "date" => Date.c
+      case "string" | "java.lang.String" => String.c
+    }
+  }
+  
+  
+}

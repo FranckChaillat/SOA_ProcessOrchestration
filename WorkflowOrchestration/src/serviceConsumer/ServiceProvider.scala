@@ -4,7 +4,6 @@ package serviceConsumer
 import org.apache.http.impl.client.DefaultHttpClient
 import org.apache.http.client.methods.HttpGet
 import serviceConsumer.serviceInventory.InventoryManager
-import contractValidation.CheckWSContract
 import workflowOrchestration.exceptions.ServiceContractValidationFailedException
 import scala.collection.immutable.HashMap
 import org.apache.http.HttpResponse
@@ -18,7 +17,7 @@ import java.io.File
 import java.nio.file.Files
 import scala.collection.mutable.Buffer
 import java.io.BufferedReader
-import jdk.internal.util.xml.impl.Input
+import java.io.InputStreamReader
 
 
 /**
@@ -26,35 +25,29 @@ import jdk.internal.util.xml.impl.Input
  */
 class ServiceProvider{
 
-  def execute(servFeatures : Map[String, String] , servParams : Map[String, String]){
+  def execute(servFeatures : Map[String, String] , servParams : Map[String, String]): String={
       
      val host=servFeatures("host")
      val port = "8080"
      val basicUri = servFeatures("silosUri")
      val servUri = servFeatures("uri")
      
-   def readRes(httpRes : HttpResponse) : String= {
-     var res = ""
-      Stream.continually(httpRes.getEntity.getContent.read).takeWhile (-1 !=).foreach { x => res =res.+(x) }
-      res
-    }
-    
-   CheckWSContract.checkContract(servFeatures) match{
-     case true =>{
- 
-         servFeatures("httpMethod").toUpperCase() match {
-           case "GET" => {readRes(get(host, port, basicUri, servUri, servFeatures("dataType"), servParams))}
-           case "POST" =>{readRes(post(host, port, basicUri, servUri, servParams))}
-         }
+     def readRes(httpRes : HttpResponse) : String= {
+       var res = ""
+       val rd = new BufferedReader(new InputStreamReader(httpRes.getEntity.getContent))
+        Stream.continually(rd.readLine).takeWhile (null !=).foreach { x => res =res.+(x) }
+        res
+      }
+     
+     servFeatures("httpMethod").toUpperCase() match {
+       case "GET" => {readRes(get(host, port, basicUri, servUri, servFeatures("dataType"), servParams))}
+       case "POST" =>{readRes(post(host, port, basicUri, servUri, servParams))}
      }
-     case false => throw new ServiceContractValidationFailedException("The contract validation failed for the service "+servFeatures("serviceName"))
-   }
   }
-  
   
   def get(host:String, port:String, basicUri:String, servUri:String, dataType:String, params : Map[String, String]): HttpResponse = {
     
-    val getReq = new HttpGet("http://"+host+":"+port+basicUri+servUri+params.values.mkString("", "/", ""))
+    val getReq = new HttpGet("http://"+host+":"+port+"/"+basicUri+servUri+params.values.mkString("", "/", ""))
     getReq.addHeader("accept", dataType)
     new DefaultHttpClient().execute(getReq)
   }

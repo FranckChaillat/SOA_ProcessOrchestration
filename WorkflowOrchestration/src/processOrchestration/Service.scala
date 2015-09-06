@@ -7,6 +7,14 @@ import com.google.gson.JsonArray
 import scala.annotation.tailrec
 import serviceConsumer.serviceInventory.InventoryManager
 import serviceConsumer.ServiceProvider
+import java.util.ArrayList
+import com.google.gson.JsonParser
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.util.Date
+import java.text.SimpleDateFormat
+import serviceContractCheckEngine.RulesEngine
+
 
 
 /**
@@ -35,17 +43,71 @@ class Service(s:JsonObject) {
   
   
    def run(params: List[(String, String)]){
-    
      
+     checkContract(params.map(f=> f._1 -> f._2).toMap)
      val sp = new ServiceProvider() 
-     sp.execute(InventoryManager.getService(name), params.map(f=> f._1 -> f._2).toMap)
+     sp.execute(InventoryManager.getCapability(name), params.map(f=> f._1 -> f._2).toMap)
      
      null
      
    }
+   
+   
+  private def convert[A](v: String, t: String): Any= {
+       t.toLowerCase  match {
+         case "int" => v.toInt
+         case "date" => new SimpleDateFormat("dd/MM/yyyy").parse(v)
+       }
+     }
   
-  
-  
-  
+  private def read[T](v: String, t :Class[T]) : Any= {
+       val parsed= new JsonParser().parse(v)
+       if(parsed.isJsonNull()) None
+       if(parsed.isJsonArray)  new Gson().fromJson(parsed.getAsJsonArray, classOf[ArrayList[T]])
+       if(parsed.isJsonObject) new Gson().fromJson(parsed.getAsJsonObject, t)
+    }
+   
+  @tailrec
+  private def ensuring(p : Param, i:Int =0): Param={
+    
+    
+     if(i>= p.constraint.length) return p
+     val c = p.constraint(i)
+     val a = StandardTypes.getType(p.mappingType).cast(p.value)
+     var value :Tuple2[Any, String ]= if(a.getClass.getDeclaredFields.contains(c.field))
+       
+                                        (a.getClass.getDeclaredField(c.field).get(a), 
+                                         a.getClass.getDeclaredField(c.field).getType.getName)                
+                                     else if(c.field.equals("")) 
+                                     
+                                        (a , a.getClass.getSimpleName)
+                                     else (None, "")
+    
+      val res = c.function.toUpperCase match {
+         case "ISLENSUP" =>RulesEngine.isLenSup(StandardTypes.getType(value._2).cast(value._1), 
+                                                convert(c.value, StandardTypes.Integer.name).asInstanceOf[Int])
+         case "ISSUP"    =>RulesEngine.isSup(StandardTypes.getType(value._2).cast(value._1), convert(c.value, StandardTypes.Date.name))
+       }
+     if(!res) c.isFailed(true)
+     ensuring(p, i.+(1))
+    }
+   
+
+  private def checkContract(params : Map[String, String]){
+    
+      //TODO : handle error
+      val p = InventoryManager.getParamConstraints(name)
+      val e = p.map { x => if(Seq(StandardTypes.Integer.name , StandardTypes.Date.name) contains(x.mappingType.toLowerCase)){
+                              x.value = convert(params(x.name) , x.mappingType)
+                              x
+                            }
+                           else x.value = read( params(x.name),Class.forName(x.mappingType))
+                                x
+                    }
+      p.map { x => ensuring(x)}
+      System.out.print("")
+      
+
+  }  
 }
 

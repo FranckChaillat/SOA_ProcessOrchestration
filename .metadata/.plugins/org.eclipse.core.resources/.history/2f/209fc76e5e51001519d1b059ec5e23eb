@@ -1,0 +1,11 @@
+package processOrchestration
+
+/**
+ * @author fra
+ */
+class Silos(n: String, u : String) {
+  
+  private _name = n
+  private _uri = u
+  
+}

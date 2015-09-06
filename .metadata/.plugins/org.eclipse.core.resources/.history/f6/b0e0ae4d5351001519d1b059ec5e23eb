@@ -1,0 +1,112 @@
+package processOrchestration
+
+import com.sun.webkit.dom.JSObject
+import com.google.gson.JsonObject
+import scala.collection.mutable.HashMap
+import com.google.gson.JsonArray
+import scala.annotation.tailrec
+import serviceConsumer.serviceInventory.InventoryManager
+import serviceConsumer.ServiceProvider
+import java.util.ArrayList
+import com.google.gson.JsonParser
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.util.Date
+import java.text.SimpleDateFormat
+import serviceContractCheckEngine.RulesEngine
+
+
+
+/**
+ * @author fra
+ */
+class Service(s:JsonObject) {
+  
+  private val name:String = if(s.has("name")) s.get("name").getAsString else throw new IllegalArgumentException("the args 'name' is requiered in the service description")   
+  val id:Int = if(s.has("serviceId"))  s.get("serviceId").getAsInt else  throw new IllegalArgumentException("the args 'serviceId' is requiered in the service description")   
+  private val onFinish = if(s.has("onFinish"))  s.get("onFinish").getAsString else null
+  private val onStart = if(s.has("onStart"))  s.get("onStart").getAsString else null
+  private val order =  if(s.has("order"))  s.get("order").getAsInt else -1
+  var args : HashMap[String, String] = HashMap()
+  var output : String = ""
+  if(s.has("args")) args = initArgs(0, s.get("args").getAsJsonArray, HashMap())
+  
+
+  
+  @tailrec
+  private def initArgs(i: Int, params: JsonArray, mappedParams : HashMap[String, String]): HashMap[String, String]={
+    
+    if(params.size()==i) return mappedParams
+    mappedParams.+=( params.get(i).getAsJsonObject.get("key").getAsString -> params.get(i).getAsJsonObject().get("value").getAsString)
+    initArgs(i.+(1), params, mappedParams)}
+  
+  
+  
+   def run(params: List[(String, String)]){
+     
+     checkContract(params.map(f=> f._1 -> f._2).toMap)
+     val sp = new ServiceProvider() 
+     sp.execute(InventoryManager.getService(name), params.map(f=> f._1 -> f._2).toMap)
+     
+     null
+     
+   }
+   
+  def ensuring(p : Param, i:Int =0): Param ={
+    
+    
+     if(i>= p.constraint.length) return p
+     val c = p.constraint(i)
+     val a = StandardTypes.getType(p.mappingType).cast(p.value)
+     var value :Tuple2[Any, String ]= if(a.getClass.getDeclaredFields.contains(c.field))
+       
+                                        (a.getClass.getDeclaredField(c.field).get(a), 
+                                         a.getClass.getDeclaredField(c.field).getType.getName)                
+                                     else if(c.field.equals("")) 
+                                     
+                                        (a , a.getClass.getSimpleName)
+                                     else (None, "")
+    
+                      
+      val res = c.function.toUpperCase match {
+         case "ISLENSUP" =>RulesEngine.isLenSup(StandardTypes.getType(value._2).cast(value._1), 
+                                                convert(c.value, StandardTypes.Integer.name).asInstanceOf[Int])
+         case "ISSUP"    =>RulesEngine.isSup(StandardTypes.getType(value._2).cast(value._1), convert(c.value, StandardTypes.Date.name))
+       }
+     if(!res) c.isFailed(true)
+     ensuring(p)
+    }
+   
+  def convert[A](v: String, t: String): Any= {
+       t.toLowerCase  match {
+         case "int" => v.toInt
+         case "date" => new SimpleDateFormat("dd/MM/yyyy").parse(v)
+       }
+     }
+   
+  private def checkContract(params : Map[String, String]){
+    
+    //TODO : handle error
+     def read[T](v: String, t :Class[T]) : Any= {
+       val parsed= new JsonParser().parse(v)
+       if(parsed.isJsonNull()) None
+       if(parsed.isJsonArray)  new Gson().fromJson(parsed.getAsJsonArray, classOf[ArrayList[T]])
+       if(parsed.isJsonObject) new Gson().fromJson(parsed.getAsJsonObject, t)
+    }
+     
+     
+      val p = InventoryManager.getParamConstraints(name)
+      val e = p.map { x => if(Seq(StandardTypes.Integer.name , StandardTypes.Date.name) contains(x.mappingType.toLowerCase)){
+                              x.value = convert(params(x.name) , x.mappingType)
+                              x
+                            }
+                           else x.value = read( params(x.name),Class.forName(x.mappingType))
+                                x
+                    }
+      p.map { x => ensuring(x)}
+      System.out.print("")
+      
+
+  }  
+}
+

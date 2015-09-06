@@ -1,0 +1,8 @@
+{processName:"courseEdition", 
+ "services": [
+	{"name":"subjectExistanceCheck", "serviceID" : 1, "args": [{"key":"subjectnName", "value":"{s:subService}:course.subject"}],
+	 "order":1, "onFinish": 2},
+										
+	{"name":"publishCourse", "serviceID" : 2, "args": [{"key":"course", "value":"course"}], "onFinish": 3},
+	{"name":"notifyMembers", "serviceID" : 3 "args": [{"key":"course", "value" : "course.group" }]}
+]}

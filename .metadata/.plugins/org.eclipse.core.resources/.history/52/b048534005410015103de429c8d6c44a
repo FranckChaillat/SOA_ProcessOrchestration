@@ -1,0 +1,138 @@
+package processOrchestration
+
+import queueManager.Message
+import scala.annotation.tailrec
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonElement
+import java.io.FileReader
+import java.io.File
+import com.google.gson.JsonArray
+import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.Iterable
+import scala.collection.Iterator
+import java.util.Iterator
+import scala.collection.immutable.Range
+
+/**
+ * @author fra
+ */
+class ProcessManager(m: Message) {
+  
+  val msg = m
+  
+  def run(): Message={
+  
+     val seq = buildSequence(read(m.routingKey),0)
+     
+         def cleanArgs(v:String):String={
+            val s = v.split("=")
+            if(s.length==2) s(1) else v
+          }
+   
+         @tailrec
+         def execProcess(executed : ListBuffer[Service], toExec: ListBuffer[Service]):Seq[Service] = {
+           
+             if(toExec.isEmpty) return executed
+             val c = toExec(0) 
+             val params = c.args.keySet.map { k => {
+               
+                if(c.args(k).startsWith("ws:")) { val subServ = seq.filter{ s => s.id==getId("", c args(k))}.head
+                                                  (k, getMsgContent( split('.', cleanArgs(c.args(k)) ) , new JsonParser().parse(subServ.output)))}
+                
+                else (k, getMsgContent(c.args(k).split(".").toList, new JsonParser().parse( new FileReader(new File("processes/"+m.routingKey)))))
+             }}         
+             c.run(params.toList)
+             execProcess(executed.+=(c), toExec.dropWhile { x => x.id.equals(c.id)})
+         }
+   
+      execProcess(ListBuffer(), seq.to[ListBuffer])
+   
+   return null
+  }
+  
+
+  
+   private def read(pName: String) : List[Service] = {
+     
+    /**build service foreach jsonObject in rode in the process file descriptor**/
+     @tailrec
+     def buildServices(i:Int, jarr: JsonArray, serv : List[Service]):List[Service]={
+      if(i == jarr.size()) return serv
+      
+         var tmpList = serv.:+(new Service(jarr.get(i).asInstanceOf[JsonObject]))
+         buildServices(i.+(1), jarr, tmpList)
+     }
+    val proc =  new JsonParser().parse( new FileReader( new File("processes/"+pName))). getAsJsonObject
+    buildServices(0, proc.getAsJsonArray("services"), List())
+   
+    }
+   
+   /**get the id of the sub service in the given string**/
+   @tailrec
+    private def getId(id: String , argVal :String): Int = {
+                                                           
+       if(argVal.isEmpty() || argVal.charAt(0).equals('=')) return id.toInt
+       val tmpId = id.+(if(argVal.charAt(0).isDigit) argVal.charAt(0).toString() else  "")
+       getId(tmpId, argVal.drop(1))                                   
+    }
+  
+  
+  @tailrec
+  private def buildSequence(seq : List[Service], i: Int) : List[Service]= {
+    
+    var reorgSeq : List[Service] = List()
+    if(i.equals(seq.size)) return seq
+    seq(i).args.keySet.foreach { key => var v = seq(i).args(key)
+                                        if(v.startsWith("ws:") && v.contains('=')) reorgSeq = reorganizeSeq(seq, getId("",v), seq(i).id)
+                                                     
+                                     
+    }
+                                        
+     buildSequence(reorgSeq ,i.+(1))
+  }
+  
+  
+  
+  /**return the JsonElement (corresponding to the path) as a string **/
+  @tailrec
+  private def getMsgContent(path : List[String], jsElem: JsonElement): String = {
+
+    path.length match {
+      
+      case 0 => ""
+      case 1 => {
+        if(jsElem.isJsonObject()) jsElem.getAsJsonObject.get(path(0))
+         else ""
+      }
+      case _ => { 
+        if(jsElem.isJsonObject()&& jsElem.getAsJsonObject.has(path(0))) getMsgContent(path= path.dropRight(path.length-1),
+                                                                                      jsElem.getAsJsonObject) else ""
+      }
+    }
+ }
+  
+  
+  private def reorganizeSeq(s : List[Service], sId :Int, sFed: Int): List[Service]= {
+   val fil =  s.filterNot { x => x.id.equals(sId)}.to[ListBuffer]
+   val servToInsert = s.filter{ x => x.id.equals(sId) }
+   if(servToInsert.length!=1) return s
+   
+   
+   for((x,i)<- s.filterNot{x => x.id.equals(sId)} .view.zipWithIndex) if(x.id.equals(sFed) && i-1>=0 && servToInsert.size>0) fil.insert(i-1, servToInsert.head)
+                                                                       else if(x.id.equals(sFed)&& servToInsert.size>0 && i-1<0) fil.+=:(servToInsert.head)
+   fil.toList
+  }
+  
+  
+  
+  private def split(sep:Char, source :String):List[String] = {
+   if(source.contains(sep)) return source.split(sep.toString).toList
+   else return List(source)
+  }
+}
+   
+  
+  
+  

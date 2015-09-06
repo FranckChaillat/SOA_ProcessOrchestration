@@ -29,4 +29,11 @@ public class Course {
 		return "coucou";
 	}
 	
+	@GET
+	@Path("/direCoucou")
+	@Produces(MediaType.TEXT_PLAIN)
+	public String courseEdition(){
+		return "coucou toi!";
+	}
+	
 }

@@ -1,0 +1,19 @@
+package serviceContractCheckEngine
+
+import scala.collection.GenSeq
+
+/**
+ * @author fra
+ */
+object RulesEngine {
+  
+  def isSup[T](a:T, b:T) Boolean = a match {
+    
+  }
+  
+  def isLenSup[A](a:A, len: Int):Boolean = a match {
+      case b:String => b.length>len
+      case c : Iterable[Any] => c.size >len
+  }
+ 
+}

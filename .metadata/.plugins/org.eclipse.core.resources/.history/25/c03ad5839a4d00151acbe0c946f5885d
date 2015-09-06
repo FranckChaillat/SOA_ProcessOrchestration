@@ -1,0 +1,18 @@
+package processOrchestration
+
+/**
+ * @author fra
+ */
+object StandardTypes extends Enumeration {
+  
+  sealed case class Types(name: String) extends Val(name)
+  
+  val Integer = Types("int")
+  val Date = Types("date")
+  
+  def getType(t: String): Types= {
+    
+  }
+  
+  
+}

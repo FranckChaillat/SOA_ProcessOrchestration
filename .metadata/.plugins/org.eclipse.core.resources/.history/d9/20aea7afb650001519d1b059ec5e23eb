@@ -1,0 +1,6 @@
+{processName:"courseEdition",
+ "services": [
+	{"name":"getCourse", "serviceId" : 1, "args": [{"key":"subjectnName", "value":"ws:2=k1"}], "order":1},
+	{"name":"publishCourse", "serviceId" : 2, "args": [{"key":"test", "value" : "02-08-2012"}]}
+	]
+	}

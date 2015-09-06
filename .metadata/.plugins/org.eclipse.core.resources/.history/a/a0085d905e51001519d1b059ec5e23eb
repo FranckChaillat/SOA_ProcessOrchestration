@@ -1,0 +1,15 @@
+package processOrchestration
+
+/**
+ * @author fra
+ */
+class Silos(n: String, u : String, identifier :String) {
+  
+  private val _id = id
+  private val _name = n
+  private val _uri = u
+  
+  def name = _name
+  def uri = _uri
+  
+}

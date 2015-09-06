@@ -1,0 +1,72 @@
+package serviceConsumer.serviceInventory
+
+import java.sql.DriverManager
+import java.sql.Connection
+import java.sql.ResultSet
+import scala.collection.mutable.ListBuffer
+import scala.annotation.tailrec
+import processOrchestration.StandardTypes
+
+/**
+ * @author fra
+ */
+object DBAccessor {
+  private val url = "jdbc:mysql://localhost:3306/serviceinv"
+  private val user = "root"
+  private val pwd = "root"
+  var conn = loadConn()
+  
+  
+    @tailrec
+    private def getRes(rs : ResultSet,
+                       res: ListBuffer[Map[String, Object]] = ListBuffer()) : ListBuffer[Map[String, Object]] = {
+      
+    Class.forName("")
+      if(rs.next) 
+        for(i<- 1.until(rs.getMetaData.getColumnCount))   res.+=(Map(rs.getMetaData.getColumnName(i) ->
+                                                                     rs.getObject(i, ))
+      else return res
+      
+      getRes(rs, res)
+    }
+  
+  
+  def execQuery(proc: String, params: Seq[String]) : Seq[Map[String, Object]] = {
+    
+    if(conn.isClosed)
+      loadConn
+    
+    var name= proc
+    var l : List[Map[String, String]] = List()
+    for(i<-1.until( params.length+1))  {if( i==1) name = name.+("(?,")
+                                        if(i==params.length) name =name.+("?)")
+                                        else name = name.+("?,")}
+    val stm = conn.prepareCall("call "+name)
+    for((j,i)<-params.view.zipWithIndex)  stm.setString(i+1, j.asInstanceOf[String])
+    val rs =stm.executeQuery
+    getRes(rs) seq
+  }
+  
+  
+  def loadConn() : Connection = {
+    
+    try {
+       Class.forName("com.mysql.jdbc.Driver")
+       DriverManager.getConnection(url, user, pwd)
+       
+    } catch {
+      case t: Throwable => {println("unable to loadDriver")
+                              t.printStackTrace()} // TODO: handle error
+                              throw t
+       }
+    
+  }
+
+  
+   def closeConnection(){
+    if(!conn.isClosed())
+      conn.close()
+   }
+    
+  
+}

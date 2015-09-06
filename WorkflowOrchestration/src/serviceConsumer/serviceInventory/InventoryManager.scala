@@ -1,10 +1,17 @@
 package serviceConsumer.serviceInventory
 
-import scala.collection.immutable.HashMap
+
 import workflowOrchestration.exceptions.InvalidServiceException
 import java.util.Currency
 import java.sql.ResultSet
 import java.sql.CallableStatement
+import processOrchestration.Constraint
+import processOrchestration.Param
+import scala.collection.mutable.ListBuffer
+import processOrchestration.Silos
+import processOrchestration.Silos
+import scala.collection.immutable.Map
+import scala.collection.immutable.HashMap
 
 /**
  * @author fra
@@ -13,56 +20,94 @@ object InventoryManager {
   
 
 
-  def getSilos() : Map [String, String] = {
-    
-       if(DataAccessor.conn.isClosed)
-         DataAccessor.loadConn
-         
-         val stm = DataAccessor.conn.prepareCall("call getSilos()")
-         val rs = stm.executeQuery
-         
-         var p : Map[String, String]= Map()
-         
-         rs.next match{
-         case true => {p.+("id"-> rs.getInt(1).toString)
-                       p.+("name"-> rs.getString(2))
-                       p.+("baseUri"-> rs.getString(3))}
-         
-         case false => throw new InvalidServiceException("le service ne semble pas exister dans l'inventaire de service")
-       }
-          p
-  }
-  
-  def getService(name: String) : Map [String, String] = {
-    
-      def exec(params : Seq[String]): ResultSet = {
+      //TODO : handle exceptions !!!
+      def getSilos() : Seq[Silos] = {
+       
+       val res = DBAccessor.execQuery("getSilos", Seq())
+       res.map((f)=>{  new Silos(f("name").toString, f("baseUri").toString, f("idSilos").toString)})
+      }
       
-        var r = "call getCapability"
-        params.length match { case 1 => r=r.+("(?)") case 2 => r=r.+("WithService(?,?)") case 3 => r=r.+("WithServiceAndSilos(?,?,?)") case _ => }
-        val callStm = DataAccessor.conn.prepareCall(r) 
+        //TODO : handle exceptions !!!
+      def getDiscoveryProps(silosName : String): Map[String, String] ={
+          
+          val res = DBAccessor.execQuery("getDiscoveryProps", Seq(silosName))
+          
+          if(res.isEmpty)  throw new InvalidServiceException("le service ne semble pas exister dans l'inventaire de service")
+          else Map("host"->res(0)("host").toString,
+                   "baseUri"->res(0)("baseUri").toString,
+                   "uri"-> res(0)("uri").toString)
+      }
+      
+      
+      def getCapability(name: String): Map [String, String] = {
         
-        for((j,i)<-params.view.zipWithIndex)  callStm.setString(i+1, j.asInstanceOf[String])
-         callStm.executeQuery
-    }
     
-    if(DataAccessor.conn.isClosed()) 
-      DataAccessor.loadConn()
+        val res = DBAccessor.execQuery("getCapability", name.split("/"))
+        
+        if(res.length==1){
+                      Map("serviceName" -> res(0)("serviceName").toString,
+                           "host" -> res(0)("host").toString,
+                           "uri"-> res(0)("uri").toString,
+                           "httpMethod" -> res(0)("httpMethod").toString,
+                           "dataType" -> res(0)("dataType").toString,
+                           "silosUri" -> res(0)("silosUri").toString)
+        }else Map()
+      }
       
-    var p : HashMap[String, String] = HashMap()
-   val rs= exec(split('/', name))
+      
+      def insertService(p : Map[String, Any]){
+        
+        val l = Seq( p("host"),p("serviceName"), p("silosId"), p("uri"))
+        DBAccessor.execQuery("insertService", l)
+        
+      }
+      
+      
+      def getService(p : String = "" ): Seq[Map[String, String]] = {
+       
+        val res = if(p.isEmpty()) DBAccessor.execQuery("getServices", Seq())
+                  else if(p.startsWith("/")) DBAccessor.execQuery("getServicesWithPath", Seq(p))
+                  else DBAccessor.execQuery("getService", Seq(p))
+        
     
-    rs.next() match {
-      case true => { List("serviceName","host","uri", "httpMethod", "dataType", "silosUri").foreach {k=> p+= k -> rs.getString(k)}}
-      case false => { throw new InvalidServiceException("le service "+name+" ne semble pas exister dans l'inventaire de service")}
-    }
-    p
-  }
-  
-   private def split(sep:Char, source :String):Array[String] = {
-     if(source.contains(sep)) 
-       return source.split(sep.toString)
-     else 
-       return Array(source)
-  }
-  
+        res.map((x)=> { Map("serviceId" -> x("serviceId").toString,
+                            "serviceName"->x("serviceName").toString,
+                            "silosName" -> x("silosName").toString,
+                            "uri"-> x("uri").toString)
+        })
+      }
+      
+      
+      
+     def getParamConstraints(capName: String) : Seq[Param] = {
+        
+         val res = DBAccessor.execQuery("getConstraints", Seq(capName))    
+         val p : ListBuffer[Param] = ListBuffer()
+         res.foreach((x)=>{  
+           val filtered =p.filter { y => y.name == x("name")}
+           if(filtered.length>0)  filtered.head.constraint.+:(new Constraint(x("field").toString,
+                                                                             x("func").toString,
+                                                                             x("value").toString))
+           else p.+=( new Param(x("name").toString, x("type").toString, "", x("seq").asInstanceOf[Int], Seq(new Constraint(x("field").toString,
+                                                                                                                           x("func").toString,
+                                                                                                                           x("value").toString))))
+         })
+       
+        p.toSeq
+     }
+     
+     def capabilityExists(capName : String, servPath :String ,silId: Int): Boolean = {
+       
+       val servId = getService(servPath).head("serviceId").toInt
+       val res =DBAccessor.execQuery("getCapability_With_Silos_And_Service", Seq(capName, silId, servId))
+       if(!res.isEmpty) true else false
+       
+     }
+    
+     def insertCapability(){
+       
+     }
+ 
+ 
+
 }

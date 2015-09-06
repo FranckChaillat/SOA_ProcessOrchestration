@@ -1,6 +1,6 @@
 package queueManager
 
-import contractValidation.Watcher
+import serviceContractCheckEngine.Watcher
 
 /**
  * @author fra

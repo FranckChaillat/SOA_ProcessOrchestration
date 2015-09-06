@@ -42,5 +42,7 @@
 	<classpathentry kind="lib" path="C:/Users/fra/Downloads/httpcomponents-client-4.4.1-bin/httpcomponents-client-4.4.1/lib/jna-4.1.0.jar"/>
 	<classpathentry kind="lib" path="C:/Users/fra/Downloads/httpcomponents-client-4.4.1-bin/httpcomponents-client-4.4.1/lib/jna-platform-4.1.0.jar"/>
 	<classpathentry kind="lib" path="lib/mysql-connector-java-5.1.13-bin.jar"/>
+	<classpathentry kind="lib" path="lib/scala-xml_2.11.0-m4-1.0-rc2.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/MappingTypes"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

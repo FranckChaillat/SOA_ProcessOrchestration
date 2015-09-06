@@ -1,0 +1,63 @@
+package serviceContractCheckEngine
+
+import java.util.TimerTask
+import serviceConsumer.serviceInventory.InventoryManager
+import serviceConsumer.ServiceProvider
+import scala.collection.mutable.ListBuffer
+import processOrchestration.Silos
+import scala.xml.XML
+
+
+/**
+ * @author fra
+ */
+object Watcher {
+    new Thread(new Runnable{def run= discover}).start
+  
+   def discover(){
+     new java.util.Timer().scheduleAtFixedRate(new TimerTask{ 
+       
+       def run(){
+         
+         def discover(silos : List[Silos])   = {
+            if (silos.length>0){
+              val props = InventoryManager.getDiscoveryProps(silos(0).name)
+              val res = new ServiceProvider().execute(Map("host" -> props("host"),
+                                                "silosUri"-> props("baseUri"),
+                                                "uri" -> props("uri"),
+                                                "httpMethod" -> "GET",
+                                                "dataType"-> "application/xml"), Map())
+             
+              checkUpdates(res)
+              
+            }
+         }
+         
+         val res = InventoryManager.getSilos
+         System.out.print("check inventory...")
+         discover(res)
+         
+       }}, 0, 1000*60 *5)
+   }
+    
+    
+    def checkUpdates(wadlContent: String){
+      
+      //val wadlContent2 = "<coucou><toi><test>ceci est un message</test></toi> <moi>ceci est un autre message</moi></coucou>"
+      val xml= XML.loadString(wadlContent)
+      
+      
+      val services = InventoryManager.getService()
+      val s = xml.\\("resources")(0).child.filter { x => services.contains(x.\\("@Path"))}
+      
+      //val f =services.filter((x)=>{s.contains(x("uri"))})
+      xml.\\("resources")(0).child.exists { x => x.\("@path").text.equals("/course") }
+      
+      
+    
+    
+      
+    
+    }
+    
+}
